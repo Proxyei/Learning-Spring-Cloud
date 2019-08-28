@@ -230,3 +230,157 @@ consumer中的yml开启配置
 ## 7、SpringCloud   config
 
 集中式协调各个微服务
+
+### Spring Clud配置文件管理中心
+
+想象中的效果是config-server监控每个工程的配置文件，一旦远程仓库的配置文件发生变化，就会更新每个服务本地的配置文件。
+
+### 使用步骤：
+
+准备工作：
+
+1. 本地安装了git并且推送了公钥到远程git仓库。
+2. 远程git仓库建立工程仓库：spring-cloud-config-server，然后clone下来，以后的配置文件就放置在上面。
+
+### 1、建立配置文件服务管理中心模块config-server
+
+#### 1、导包，spring-cloud-starter-config
+
+#### 2、建立application.yml文件，配置远程git仓库。
+
+```yaml
+# 不是必须的
+server: 
+  port: 6666 #谷歌浏览器屏蔽了6666端口，应该换成其他的
+# 集合到eureka，配置远程git仓库地址  
+spring:
+  application:
+    name:  microservicecloud-config
+  cloud:
+    config:
+      server:
+        git:
+          uri: git@XXX/spring-cloud-config-serve.git #GitHub上面的git仓库名字
+
+```
+
+### 2、整合config客户端
+
+在需要动态切换配置文件的微服务工程下进行配置，以privider-dept-8001为例
+
+建立bootstrap.yml文件，配置spring-cloud-config-server服务的访问地址可以是
+
+- http://ip:port
+- http://hostname:port
+
+配置需要加载的远程配置文件名，不包括后缀。
+
+如下：
+
+```yaml
+spring:
+  cloud:
+    config:
+      name: xxx #需要从github上读取的资源名称，注意没有yml后缀名
+      #profile配置是什么就取什么配置dev or test
+      profile: dev
+      #profile: test
+      label: master
+      uri: http://confi-server:6666  #SpringCloudConfig获取的服务地址
+```
+
+上传privider-dept-8001工程的配置文件，privider-dept-8001.yml
+
+```yaml
+spring:
+  profiles:
+    active:
+    - dev
+--- 
+server:
+  port: 8001
+  
+## mybatis配置
+mybatis:
+  config-location: classpath:mybatis/config/mybatis.cfg.xml
+  type-aliases-package: com.xywei.entity
+  mapper-locations:
+  - classpath:mybatis/mapper/**/*.xml 
+  
+
+## 服务名/数据库/数据源配置
+spring: 
+  profiles: dev
+  application:
+    name: provider-dept-service #eurakla中对外暴露的微服务名字， 与server.context-path有什么区别
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/xy-spring-cloud-first-8001-dev
+    username: root
+    password: xieSHI123321
+    dbcp2:
+      initial-size: 5 # 初始化连接数
+      min-idle: 5 # 维持最小连接数
+      max-total: 5 # 最大连接数
+      max-wait-millis: 1000 # 等待时间
+
+eureka:
+  client:
+    service-url: 
+      defaultZone: http://eureka7001.com:7001/eureka/,http://eureka7002.com:7002/eureka/,http://eureka7003.com:7003/eureka/
+  instance:
+    instance-id: provider-dept-8001
+    prefer-ip-address: true
+    
+info:
+  app.name: $project.build.finalName$
+  build.version: $project.version$
+--- 
+server:
+  port: 8001
+  
+## mybatis配置
+mybatis:
+  config-location: classpath:mybatis/config/mybatis.cfg.xml
+  type-aliases-package: com.xywei.entity
+  mapper-locations:
+  - classpath:mybatis/mapper/**/*.xml 
+  
+
+## 服务名/数据库/数据源配置
+spring: 
+  profiles: test
+  application:
+    name: provider-dept-service #eurakla中对外暴露的微服务名字， 与server.context-path有什么区别
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/xy-spring-cloud-first-8001-test
+    username: root
+    password: xieSHI123321
+    dbcp2:
+      initial-size: 5 # 初始化连接数
+      min-idle: 5 # 维持最小连接数
+      max-total: 5 # 最大连接数
+      max-wait-millis: 1000 # 等待时间
+
+eureka:
+  client:
+    service-url: 
+      defaultZone: http://eureka7001.com:7001/eureka/,http://eureka7002.com:7002/eureka/,http://eureka7003.com:7003/eureka/
+  instance:
+    instance-id: provider-dept-8001
+    prefer-ip-address: true
+    
+info:
+  app.name: $project.build.finalName$
+  build.version: $project.version$
+```
+
+
+
+### 总结：
+
+- 客户端bootstrap.yml必须配置上profiles:属性，否则会报错
+- 微服务启动的时候会优先找github上的，也就是github的配置会覆盖本地配置。
